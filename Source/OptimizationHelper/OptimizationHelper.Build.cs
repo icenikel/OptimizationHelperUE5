@@ -20,7 +20,8 @@ public class OptimizationHelper : ModuleRules
             "Slate",              // Added for UI
             "SlateCore",          // Added for UI
             "InputCore",          // Added for UI
-            "ToolMenus"           // Added for menu integration
+            "ToolMenus",           // Added for menu integration
+            "ContentBrowser"
         });
     }
 }
