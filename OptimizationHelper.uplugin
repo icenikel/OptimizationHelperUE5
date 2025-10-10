@@ -1,0 +1,16 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "1.0",
+    "FriendlyName": "Optimization Helper",
+    "Description": "Optimization Helper Plugin",
+    "Category": "Tools",
+    "CreatedBy": "You",
+    "Modules": [
+        {
+            "Name": "OptimizationHelper",
+            "Type": "Editor",
+            "LoadingPhase": "PostEngineInit"
+        }
+    ]
+}

@@ -1,0 +1,48 @@
+# Unreal Engine intermediate and binary folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Build artifacts
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata
+*.log
+*.tlog
+*.obj
+*.pdb
+*.idb
+*.ipch
+*.db
+*.dll
+*.exe
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.orig
+*.cache
+*.user
+*.userprefs
+
+# IDE-specific
+.vs/
+.vscode/
+.idea/
+
+# Platform-specific
+.DS_Store
+Thumbs.db
+
+# Unreal-specific user settings
+*.uasset
+*.umap
+
+# Optional: ignore build products
+Build/
