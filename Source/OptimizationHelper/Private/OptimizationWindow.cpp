@@ -9,14 +9,16 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "ContentBrowserModule.h"  // ← НОВОЕ!
-#include "IContentBrowserSingleton.h"  // ← НОВОЕ!
+#include "ContentBrowserModule.h"
+#include "IContentBrowserSingleton.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #define LOCTEXT_NAMESPACE "OptimizationWindow"
 
 void SOptimizationWindow::Construct(const FArguments& InArgs)
 {
     Analyzer = NewObject<UOptimizationAnalyzer>();
+    CurrentFilter = EFilterType::All;
 
     ChildSlot
         [
@@ -114,6 +116,94 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         ]
                 ]
 
+            // Filter buttons
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10.0f, 5.0f)
+                [
+                    SNew(SHorizontalBox)
+
+                        // Label
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Center)
+                        .Padding(5.0f, 0.0f)
+                        [
+                            SNew(STextBlock)
+                                .Text(LOCTEXT("FilterLabel", "Filter:"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                        ]
+
+                        // All button
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterAll", "All"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterAll)
+                                .ToolTipText(LOCTEXT("FilterAllTooltip", "Show all issues"))
+                        ]
+
+                        // Critical button
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterCritical", "Critical"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterCritical)
+                                .ButtonColorAndOpacity(FLinearColor(0.8f, 0.2f, 0.2f, 1.0f))
+                                .ToolTipText(LOCTEXT("FilterCriticalTooltip", "Show only critical issues"))
+                        ]
+
+                    // Warning button
+                    + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterWarning", "Warning"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterWarning)
+                                .ButtonColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.2f, 1.0f))
+                                .ToolTipText(LOCTEXT("FilterWarningTooltip", "Show only warnings"))
+                        ]
+
+                    // Info button
+                    + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterInfo", "Info"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterInfo)
+                                .ButtonColorAndOpacity(FLinearColor(0.2f, 0.8f, 0.2f, 1.0f))
+                                .ToolTipText(LOCTEXT("FilterInfoTooltip", "Show only info messages"))
+                        ]
+
+                    // Meshes button
+                    + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterMeshes", "Meshes"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterMeshes)
+                                .ToolTipText(LOCTEXT("FilterMeshesTooltip", "Show only mesh issues"))
+                        ]
+
+                        // Textures button
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterTextures", "Textures"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterTextures)
+                                .ToolTipText(LOCTEXT("FilterTexturesTooltip", "Show only texture issues"))
+                        ]
+                ]
+
             // Buttons row
             + SVerticalBox::Slot()
                 .AutoHeight()
@@ -178,6 +268,7 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
     }
 
     // Clear previous results
+    AllIssues.Empty();
     Issues.Empty();
     StatusText->SetText(LOCTEXT("Analyzing", "Analyzing project..."));
 
@@ -186,12 +277,12 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
     TArray<FOptimizationIssue> TextureIssues = Analyzer->CheckTextures();
 
     // Combine all issues
-    TArray<FOptimizationIssue> AllIssues;
-    AllIssues.Append(MeshIssues);
-    AllIssues.Append(TextureIssues);
+    TArray<FOptimizationIssue> AllIssuesArray;
+    AllIssuesArray.Append(MeshIssues);
+    AllIssuesArray.Append(TextureIssues);
 
     // Sort by severity and impact
-    AllIssues.Sort([](const FOptimizationIssue& A, const FOptimizationIssue& B)
+    AllIssuesArray.Sort([](const FOptimizationIssue& A, const FOptimizationIssue& B)
         {
             if (A.Severity != B.Severity)
             {
@@ -201,25 +292,23 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
         });
 
     // Convert to shared pointers
-    for (const FOptimizationIssue& Issue : AllIssues)
+    for (const FOptimizationIssue& Issue : AllIssuesArray)
     {
-        Issues.Add(MakeShared<FOptimizationIssue>(Issue));
+        AllIssues.Add(MakeShared<FOptimizationIssue>(Issue));
     }
 
-    // Refresh list
-    if (IssueListView.IsValid())
-    {
-        IssueListView->RequestListRefresh();
-    }
+    // Apply current filter
+    CurrentFilter = EFilterType::All;
+    ApplyFilter();
 
     // Update status
     FText StatusMessage = FText::Format(
         LOCTEXT("AnalysisComplete", "Analysis complete! Found {0} issues."),
-        FText::AsNumber(Issues.Num())
+        FText::AsNumber(AllIssues.Num())
     );
     StatusText->SetText(StatusMessage);
 
-    UE_LOG(LogTemp, Warning, TEXT("OptimizationHelper: Found %d issues"), Issues.Num());
+    UE_LOG(LogTemp, Warning, TEXT("OptimizationHelper: Found %d issues"), AllIssues.Num());
 
     return FReply::Handled();
 }
@@ -264,7 +353,7 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
     FString CSVContent;
 
     // Header
-    CSVContent += TEXT("Severity,Title,Description,Impact (%),Asset Path,Suggested Fix\n");
+    CSVContent += TEXT("Severity,Category,Title,Description,Impact (%),Asset Path,Suggested Fix\n");
 
     // Data rows
     for (const TSharedPtr<FOptimizationIssue>& Issue : Issues)
@@ -277,6 +366,18 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
         case EOptimizationSeverity::Info: SeverityStr = TEXT("Info"); break;
         }
 
+        FString CategoryStr;
+        switch (Issue->Category)
+        {
+        case EOptimizationCategory::Mesh: CategoryStr = TEXT("Mesh"); break;
+        case EOptimizationCategory::Texture: CategoryStr = TEXT("Texture"); break;
+        case EOptimizationCategory::Material: CategoryStr = TEXT("Material"); break;
+        case EOptimizationCategory::Blueprint: CategoryStr = TEXT("Blueprint"); break;
+        case EOptimizationCategory::Audio: CategoryStr = TEXT("Audio"); break;
+        case EOptimizationCategory::Particle: CategoryStr = TEXT("Particle"); break;
+        case EOptimizationCategory::Other: CategoryStr = TEXT("Other"); break;
+        }
+
         // Escape commas and quotes in text
         FString Title = Issue->Title.Replace(TEXT(","), TEXT(";"));
         FString Description = Issue->Description.Replace(TEXT(","), TEXT(";"));
@@ -284,8 +385,9 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
         FString AssetPath = Issue->AssetPath.Replace(TEXT(","), TEXT(";"));
 
         CSVContent += FString::Printf(
-            TEXT("%s,%s,%s,%.1f,%s,%s\n"),
+            TEXT("%s,%s,%s,%s,%.1f,%s,%s\n"),
             *SeverityStr,
+            *CategoryStr,
             *Title,
             *Description,
             Issue->EstimatedImpact,
@@ -316,6 +418,128 @@ void SOptimizationWindow::OnMaxTextureSizeChanged(float NewValue)
     }
 }
 
+FReply SOptimizationWindow::OnFilterAll()
+{
+    CurrentFilter = EFilterType::All;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterCritical()
+{
+    CurrentFilter = EFilterType::Critical;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterWarning()
+{
+    CurrentFilter = EFilterType::Warning;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterInfo()
+{
+    CurrentFilter = EFilterType::Info;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterMeshes()
+{
+    CurrentFilter = EFilterType::Meshes;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterTextures()
+{
+    CurrentFilter = EFilterType::Textures;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+void SOptimizationWindow::ApplyFilter()
+{
+    FilteredIssues.Empty();
+
+    switch (CurrentFilter)
+    {
+    case EFilterType::All:
+        FilteredIssues = AllIssues;
+        break;
+
+    case EFilterType::Critical:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Severity == EOptimizationSeverity::Critical)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Warning:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Severity == EOptimizationSeverity::Warning)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Info:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Severity == EOptimizationSeverity::Info)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Meshes:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Category == EOptimizationCategory::Mesh)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Textures:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Category == EOptimizationCategory::Texture)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+    }
+
+    // Update list view to use filtered issues
+    Issues = FilteredIssues;
+
+    if (IssueListView.IsValid())
+    {
+        IssueListView->RequestListRefresh();
+    }
+
+    // Update status
+    FText FilterMessage = FText::Format(
+        LOCTEXT("FilterApplied", "Showing {0} of {1} issues"),
+        FText::AsNumber(FilteredIssues.Num()),
+        FText::AsNumber(AllIssues.Num())
+    );
+    StatusText->SetText(FilterMessage);
+
+    UE_LOG(LogTemp, Log, TEXT("Filter applied: %d/%d issues shown"), FilteredIssues.Num(), AllIssues.Num());
+}
+
 TSharedRef<ITableRow> SOptimizationWindow::OnGenerateIssueRow(
     TSharedPtr<FOptimizationIssue> Issue,
     const TSharedRef<STableViewBase>& OwnerTable)
@@ -339,7 +563,6 @@ TSharedRef<ITableRow> SOptimizationWindow::OnGenerateIssueRow(
         break;
     }
 
-    // Создаем виджет с кнопкой для открытия ассета
     return SNew(STableRow<TSharedPtr<FOptimizationIssue>>, OwnerTable)
         .Padding(5.0f)
         [
@@ -350,27 +573,20 @@ TSharedRef<ITableRow> SOptimizationWindow::OnGenerateIssueRow(
                         // Open asset on click
                         if (!Issue->AssetPath.IsEmpty())
                         {
-                            // Метод 1: Попробовать открыть редактор
-                            UObject* Asset = LoadObject<UObject>(nullptr, *Issue->AssetPath);
-                            if (Asset)
+                            // Find asset in Asset Registry
+                            FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+                            FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(Issue->AssetPath));
+
+                            if (AssetData.IsValid())
                             {
-                                UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-                                if (AssetEditorSubsystem)
-                                {
-                                    AssetEditorSubsystem->OpenEditorForAsset(Asset);
-                                    UE_LOG(LogTemp, Log, TEXT("Opened asset editor: %s"), *Issue->AssetPath);
-                                }
-                            }
-                            else
-                            {
-                                // Метод 2: Если не удалось загрузить, попробовать синхронизировать в Content Browser
-                                TArray<FString> AssetPaths;
-                                AssetPaths.Add(Issue->AssetPath);
+                                // Show in Content Browser
+                                TArray<FAssetData> AssetsToSync;
+                                AssetsToSync.Add(AssetData);
 
                                 FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-                                ContentBrowserModule.Get().SyncBrowserToAssets(TArray<FAssetData>(), true);
+                                ContentBrowserModule.Get().SyncBrowserToAssets(AssetsToSync);
 
-                                UE_LOG(LogTemp, Warning, TEXT("Could not load asset, synced in Content Browser: %s"), *Issue->AssetPath);
+                                UE_LOG(LogTemp, Log, TEXT("Highlighted asset in Content Browser: %s"), *Issue->AssetPath);
                             }
                         }
                         return FReply::Handled();
@@ -465,4 +681,5 @@ TSharedRef<ITableRow> SOptimizationWindow::OnGenerateIssueRow(
                 ]
         ];
 }
+
 #undef LOCTEXT_NAMESPACE

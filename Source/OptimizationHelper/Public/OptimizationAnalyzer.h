@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
@@ -10,6 +10,18 @@ enum class EOptimizationSeverity : uint8
     Info,
     Warning,
     Critical
+};
+
+UENUM(BlueprintType)
+enum class EOptimizationCategory : uint8  // ← НОВОЕ!
+{
+    Mesh,
+    Texture,
+    Material,
+    Blueprint,
+    Audio,
+    Particle,
+    Other
 };
 
 USTRUCT(BlueprintType)
@@ -25,6 +37,9 @@ struct FOptimizationIssue
 
     UPROPERTY()
     EOptimizationSeverity Severity;
+
+    UPROPERTY()
+    EOptimizationCategory Category;
 
     UPROPERTY()
     FString AssetPath;

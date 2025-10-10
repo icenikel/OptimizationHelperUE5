@@ -22,6 +22,16 @@ private:
     FReply OnAnalyzeClicked();
     FReply OnExportClicked();
 
+    // Filter handlers
+    FReply OnFilterAll();
+    FReply OnFilterCritical();
+    FReply OnFilterWarning();
+    FReply OnFilterInfo();
+    FReply OnFilterMeshes();
+    FReply OnFilterTextures();
+
+    void ApplyFilter();
+
     // List generation
     TSharedRef<ITableRow> OnGenerateIssueRow(
         TSharedPtr<FOptimizationIssue> Issue,
@@ -37,10 +47,24 @@ private:
 
     // UI Elements
     TArray<TSharedPtr<FOptimizationIssue>> Issues;
+    TArray<TSharedPtr<FOptimizationIssue>> AllIssues;
+    TArray<TSharedPtr<FOptimizationIssue>> FilteredIssues;
     TSharedPtr<SListView<TSharedPtr<FOptimizationIssue>>> IssueListView;
     TSharedPtr<STextBlock> StatusText;
     TSharedPtr<SSpinBox<float>> MaxTrianglesSpinBox;
     TSharedPtr<SSpinBox<float>> MaxTextureSizeSpinBox;
+
+    // Filter state
+    enum class EFilterType
+    {
+        All,
+        Critical,
+        Warning,
+        Info,
+        Meshes,
+        Textures
+    };
+    EFilterType CurrentFilter;
 
     // Logic
     UOptimizationAnalyzer* Analyzer;
