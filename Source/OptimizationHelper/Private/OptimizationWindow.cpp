@@ -5,7 +5,9 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Notifications/SProgressBar.h"  // ← НОВОЕ!
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -234,13 +236,40 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         ]
                 ]
 
-            // Status text
+            // Status and Progress section  ← ОБНОВЛЕНО!
             + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10.0f)
                 [
-                    SAssignNew(StatusText, STextBlock)
-                        .Text(LOCTEXT("StatusReady", "Ready to analyze. Click the button above."))
+                    SNew(SVerticalBox)
+
+                        // Status text
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        [
+                            SAssignNew(StatusText, STextBlock)
+                                .Text(LOCTEXT("StatusReady", "Ready to analyze. Click the button above."))
+                        ]
+
+                        // Progress text
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(0.0f, 5.0f)
+                        [
+                            SAssignNew(ProgressText, STextBlock)
+                                .Text(FText::GetEmpty())
+                                .Visibility(EVisibility::Collapsed)  // Hidden by default
+                        ]
+
+                        // Progress bar
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(0.0f, 5.0f)
+                        [
+                            SAssignNew(ProgressBar, SProgressBar)
+                                .Percent(0.0f)
+                                .Visibility(EVisibility::Collapsed)  // Hidden by default
+                        ]
                 ]
 
                 // Issues list
@@ -270,16 +299,71 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
     // Clear previous results
     AllIssues.Empty();
     Issues.Empty();
+
+    // Show progress bar
+    if (ProgressBar.IsValid())
+    {
+        ProgressBar->SetVisibility(EVisibility::Visible);
+        TSharedPtr<SProgressBar> ProgressBarWidget = StaticCastSharedPtr<SProgressBar>(ProgressBar);
+        if (ProgressBarWidget.IsValid())
+        {
+            ProgressBarWidget->SetPercent(0.0f);
+        }
+    }
+    if (ProgressText.IsValid())
+    {
+        ProgressText->SetVisibility(EVisibility::Visible);
+        ProgressText->SetText(LOCTEXT("ProgressStarting", "Starting analysis... (0%)"));
+    }
+
     StatusText->SetText(LOCTEXT("Analyzing", "Analyzing project..."));
 
-    // Run analysis
+    // Force immediate UI update
+    FSlateApplication::Get().PumpMessages();
+    FPlatformProcess::Sleep(0.1f);  // Small delay to show initial state
+
+    // Step 1: Analyze Meshes (0-40%)
+    UpdateProgress(LOCTEXT("ProgressMeshes", "Analyzing meshes..."), 0.1f);
+    FPlatformProcess::Sleep(0.05f);
+
     TArray<FOptimizationIssue> MeshIssues = Analyzer->CheckMeshes();
+    UpdateProgress(LOCTEXT("ProgressMeshesDone", "Meshes analyzed"), 0.4f);
+    FPlatformProcess::Sleep(0.05f);
+
+    // Step 2: Analyze Textures (40-70%)
+    UpdateProgress(LOCTEXT("ProgressTextures", "Analyzing textures..."), 0.5f);
+    FPlatformProcess::Sleep(0.05f);
+
     TArray<FOptimizationIssue> TextureIssues = Analyzer->CheckTextures();
+    UpdateProgress(LOCTEXT("ProgressTexturesDone", "Textures analyzed"), 0.7f);
+    FPlatformProcess::Sleep(0.05f);
+
+    // Step 3: Analyze Materials (70-80%)
+    UpdateProgress(LOCTEXT("ProgressMaterials", "Analyzing materials..."), 0.75f);
+    FPlatformProcess::Sleep(0.05f);
+
+    TArray<FOptimizationIssue> MaterialIssues = Analyzer->CheckMaterials();
+    UpdateProgress(LOCTEXT("ProgressMaterialsDone", "Materials analyzed"), 0.8f);
+    FPlatformProcess::Sleep(0.05f);
+
+    // Step 4: Analyze Blueprints (80-90%)
+    UpdateProgress(LOCTEXT("ProgressBlueprints", "Analyzing blueprints..."), 0.85f);
+    FPlatformProcess::Sleep(0.05f);
+
+    TArray<FOptimizationIssue> BlueprintIssues = Analyzer->CheckBlueprints();
+    UpdateProgress(LOCTEXT("ProgressBlueprintsDone", "Blueprints analyzed"), 0.9f);
+    FPlatformProcess::Sleep(0.05f);
+
+    // Step 5: Finalize (90-100%)
+    UpdateProgress(LOCTEXT("ProgressFinalizing", "Finalizing results..."), 0.95f);
+    FPlatformProcess::Sleep(0.05f);
 
     // Combine all issues
     TArray<FOptimizationIssue> AllIssuesArray;
     AllIssuesArray.Append(MeshIssues);
     AllIssuesArray.Append(TextureIssues);
+    AllIssuesArray.Append(MaterialIssues);
+    AllIssuesArray.Append(BlueprintIssues);
 
     // Sort by severity and impact
     AllIssuesArray.Sort([](const FOptimizationIssue& A, const FOptimizationIssue& B)
@@ -300,6 +384,20 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
     // Apply current filter
     CurrentFilter = EFilterType::All;
     ApplyFilter();
+
+    // Complete
+    UpdateProgress(LOCTEXT("ProgressComplete", "Analysis complete!"), 1.0f);
+    FPlatformProcess::Sleep(0.3f);  // Show 100% for a moment
+
+    // Hide progress bar
+    if (ProgressBar.IsValid())
+    {
+        ProgressBar->SetVisibility(EVisibility::Collapsed);
+    }
+    if (ProgressText.IsValid())
+    {
+        ProgressText->SetVisibility(EVisibility::Collapsed);
+    }
 
     // Update status
     FText StatusMessage = FText::Format(
@@ -353,7 +451,7 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
     FString CSVContent;
 
     // Header
-    CSVContent += TEXT("Severity,Category,Title,Description,Impact (%),Asset Path,Suggested Fix\n");
+    CSVContent += TEXT("Severity,Title,Description,Impact (%),Asset Path,Suggested Fix\n");
 
     // Data rows
     for (const TSharedPtr<FOptimizationIssue>& Issue : Issues)
@@ -366,28 +464,15 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
         case EOptimizationSeverity::Info: SeverityStr = TEXT("Info"); break;
         }
 
-        FString CategoryStr;
-        switch (Issue->Category)
-        {
-        case EOptimizationCategory::Mesh: CategoryStr = TEXT("Mesh"); break;
-        case EOptimizationCategory::Texture: CategoryStr = TEXT("Texture"); break;
-        case EOptimizationCategory::Material: CategoryStr = TEXT("Material"); break;
-        case EOptimizationCategory::Blueprint: CategoryStr = TEXT("Blueprint"); break;
-        case EOptimizationCategory::Audio: CategoryStr = TEXT("Audio"); break;
-        case EOptimizationCategory::Particle: CategoryStr = TEXT("Particle"); break;
-        case EOptimizationCategory::Other: CategoryStr = TEXT("Other"); break;
-        }
-
-        // Escape commas and quotes in text
+        // Escape commas in text
         FString Title = Issue->Title.Replace(TEXT(","), TEXT(";"));
         FString Description = Issue->Description.Replace(TEXT(","), TEXT(";"));
         FString SuggestedFix = Issue->SuggestedFix.Replace(TEXT(","), TEXT(";"));
         FString AssetPath = Issue->AssetPath.Replace(TEXT(","), TEXT(";"));
 
         CSVContent += FString::Printf(
-            TEXT("%s,%s,%s,%s,%.1f,%s,%s\n"),
+            TEXT("%s,%s,%s,%.1f,%s,%s\n"),
             *SeverityStr,
-            *CategoryStr,
             *Title,
             *Description,
             Issue->EstimatedImpact,
@@ -399,6 +484,8 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
     // Save to file
     FFileHelper::SaveStringToFile(CSVContent, *FilePath);
 }
+
+
 
 void SOptimizationWindow::OnMaxTrianglesChanged(float NewValue)
 {
@@ -680,6 +767,32 @@ TSharedRef<ITableRow> SOptimizationWindow::OnGenerateIssueRow(
                         ]
                 ]
         ];
+}
+
+void SOptimizationWindow::UpdateProgress(const FText& CurrentTask, float Progress)
+{
+    if (ProgressBar.IsValid())
+    {
+        // Cast to SProgressBar to access SetPercent
+        TSharedPtr<SProgressBar> ProgressBarWidget = StaticCastSharedPtr<SProgressBar>(ProgressBar);
+        if (ProgressBarWidget.IsValid())
+        {
+            ProgressBarWidget->SetPercent(Progress);
+        }
+    }
+
+    if (ProgressText.IsValid())
+    {
+        FText ProgressMessage = FText::Format(
+            LOCTEXT("ProgressFormat", "{0} ({1}%)"),
+            CurrentTask,
+            FText::AsNumber(FMath::RoundToInt(Progress * 100))
+        );
+        ProgressText->SetText(ProgressMessage);
+    }
+
+    // Force UI update
+    FSlateApplication::Get().PumpMessages();
 }
 
 #undef LOCTEXT_NAMESPACE

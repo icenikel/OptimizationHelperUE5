@@ -45,12 +45,16 @@ private:
     void OnMaxTrianglesChanged(float NewValue);
     void OnMaxTextureSizeChanged(float NewValue);
 
+    void UpdateProgress(const FText& CurrentTask, float Progress);
+
     // UI Elements
     TArray<TSharedPtr<FOptimizationIssue>> Issues;
     TArray<TSharedPtr<FOptimizationIssue>> AllIssues;
     TArray<TSharedPtr<FOptimizationIssue>> FilteredIssues;
     TSharedPtr<SListView<TSharedPtr<FOptimizationIssue>>> IssueListView;
     TSharedPtr<STextBlock> StatusText;
+    TSharedPtr<STextBlock> ProgressText;  // ← НОВОЕ!
+    TSharedPtr<SWidget> ProgressBar;  // ← НОВОЕ!
     TSharedPtr<SSpinBox<float>> MaxTrianglesSpinBox;
     TSharedPtr<SSpinBox<float>> MaxTextureSizeSpinBox;
 
