@@ -4,6 +4,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "OptimizationAnalyzer.h"
 #include "Widgets/Views/SListView.h"
+#include <Widgets/Notifications/SProgressBar.h>
 
 // Forward declarations
 template <typename NumericType>
@@ -20,6 +21,7 @@ public:
 private:
     // Button handlers
     FReply OnAnalyzeClicked();
+    FReply OnAnalyzeCurrentLevelClicked();
     FReply OnExportClicked();
 
     // Filter handlers
@@ -54,7 +56,7 @@ private:
     TSharedPtr<SListView<TSharedPtr<FOptimizationIssue>>> IssueListView;
     TSharedPtr<STextBlock> StatusText;
     TSharedPtr<STextBlock> ProgressText;  // ← НОВОЕ!
-    TSharedPtr<SWidget> ProgressBar;  // ← НОВОЕ!
+    TSharedPtr<SProgressBar> ProgressBar;  // ← НОВОЕ!
     TSharedPtr<SSpinBox<float>> MaxTrianglesSpinBox;
     TSharedPtr<SSpinBox<float>> MaxTextureSizeSpinBox;
 

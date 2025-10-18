@@ -213,6 +213,20 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                 [
                     SNew(SHorizontalBox)
 
+                        
+                                // AnalyzeCurrentLevel
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SButton)
+                                        .Text(LOCTEXT("AnalyzeCurrentLevelButton", "Analyze Current Level"))
+                                        .ToolTipText(LOCTEXT("AnalyzeCurrentLevelTooltip", "Quick analysis of the currently opened level"))
+                                        .OnClicked(this, &SOptimizationWindow::OnAnalyzeCurrentLevelClicked)
+                                        .HAlign(HAlign_Center)
+                                ]
+            
+           
                         // Analyze button
                         + SHorizontalBox::Slot()
                         .FillWidth(1.0f)
@@ -235,6 +249,7 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                 .HAlign(HAlign_Center)
                         ]
                 ]
+
 
             // Status and Progress section  ← ОБНОВЛЕНО!
             + SVerticalBox::Slot()
@@ -266,9 +281,14 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         .AutoHeight()
                         .Padding(0.0f, 5.0f)
                         [
-                            SAssignNew(ProgressBar, SProgressBar)
-                                .Percent(0.0f)
-                                .Visibility(EVisibility::Collapsed)  // Hidden by default
+                            SNew(SBox)
+                                .HeightOverride(20.0f)  // Явная высота
+                                [
+                                    SAssignNew(ProgressBar, SProgressBar)
+                                        .Percent(0.0f)  // ← Убрали TOptional
+                                        .FillColorAndOpacity(FLinearColor(0.0f, 0.5f, 1.0f))  // Синий цвет заполнения
+                                        .Visibility(EVisibility::Collapsed)
+                                ]
                         ]
                 ]
 
@@ -300,16 +320,13 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
     AllIssues.Empty();
     Issues.Empty();
 
-    // Show progress bar
+    // Show progress widgets
     if (ProgressBar.IsValid())
     {
         ProgressBar->SetVisibility(EVisibility::Visible);
-        TSharedPtr<SProgressBar> ProgressBarWidget = StaticCastSharedPtr<SProgressBar>(ProgressBar);
-        if (ProgressBarWidget.IsValid())
-        {
-            ProgressBarWidget->SetPercent(0.0f);
-        }
+        ProgressBar->SetPercent(0.0f);  // ← ИСПРАВЛЕНО
     }
+
     if (ProgressText.IsValid())
     {
         ProgressText->SetVisibility(EVisibility::Visible);
@@ -318,17 +335,18 @@ FReply SOptimizationWindow::OnAnalyzeClicked()
 
     StatusText->SetText(LOCTEXT("Analyzing", "Analyzing project..."));
 
-    // Force immediate UI update
+    // Force UI update
     FSlateApplication::Get().PumpMessages();
-    FPlatformProcess::Sleep(0.1f);  // Small delay to show initial state
+    FSlateApplication::Get().Tick();
+    FPlatformProcess::Sleep(0.1f);
 
     // Step 1: Analyze Meshes (0-40%)
     UpdateProgress(LOCTEXT("ProgressMeshes", "Analyzing meshes..."), 0.1f);
-    FPlatformProcess::Sleep(0.05f);
+    FPlatformProcess::Sleep(0.1f);
 
     TArray<FOptimizationIssue> MeshIssues = Analyzer->CheckMeshes();
     UpdateProgress(LOCTEXT("ProgressMeshesDone", "Meshes analyzed"), 0.4f);
-    FPlatformProcess::Sleep(0.05f);
+    FPlatformProcess::Sleep(0.1f);
 
     // Step 2: Analyze Textures (40-70%)
     UpdateProgress(LOCTEXT("ProgressTextures", "Analyzing textures..."), 0.5f);
@@ -483,6 +501,97 @@ void SOptimizationWindow::ExportToCSV(const FString& FilePath)
 
     // Save to file
     FFileHelper::SaveStringToFile(CSVContent, *FilePath);
+}
+
+FReply SOptimizationWindow::OnAnalyzeCurrentLevelClicked()
+{
+    if (!Analyzer)
+    {
+        StatusText->SetText(LOCTEXT("AnalyzerError", "Error: Analyzer not initialized"));
+        return FReply::Handled();
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("=== Starting Current Level Analysis ==="));
+
+    // Clear previous results
+    AllIssues.Empty();
+    Issues.Empty();
+
+    // Show progress bar - ВАЖНО: сначала показать виджеты
+    if (ProgressBar.IsValid())
+    {
+        ProgressBar->SetVisibility(EVisibility::Visible);
+        ProgressBar->SetPercent(0.0f);
+    }
+
+    if (ProgressText.IsValid())
+    {
+        ProgressText->SetVisibility(EVisibility::Visible);
+        ProgressText->SetText(LOCTEXT("ProgressStartingLevel", "Starting level analysis... (0%)"));
+    }
+
+    StatusText->SetText(LOCTEXT("AnalyzingLevel", "Analyzing current level..."));
+
+    // Force UI update ПЕРЕД началом анализа
+    FSlateApplication::Get().PumpMessages();
+    FSlateApplication::Get().Tick();
+    FPlatformProcess::Sleep(0.15f);  // Увеличил задержку
+
+    // Step 1: Initialize (0-20%)
+    UpdateProgress(LOCTEXT("ProgressLevelInit", "Initializing level scan..."), 0.1f);
+    FPlatformProcess::Sleep(0.2f);
+
+    UpdateProgress(LOCTEXT("ProgressLevelScan", "Scanning level actors..."), 0.2f);
+    FPlatformProcess::Sleep(0.2f);
+
+    // Step 2: Analyze (20-80%)
+    UpdateProgress(LOCTEXT("ProgressLevelAnalyzing", "Analyzing meshes and textures..."), 0.4f);
+    FPlatformProcess::Sleep(0.2f);
+
+    // ОСНОВНОЙ АНАЛИЗ
+    TArray<FOptimizationIssue> LevelIssues = Analyzer->AnalyzeCurrentLevel();
+
+    UpdateProgress(LOCTEXT("ProgressLevelProcessing", "Processing results..."), 0.8f);
+    FPlatformProcess::Sleep(0.2f);
+
+    // Step 3: Finalize (80-100%)
+    UpdateProgress(LOCTEXT("ProgressLevelFinalizing", "Finalizing..."), 0.9f);
+    FPlatformProcess::Sleep(0.2f);
+
+    // Convert to shared pointers
+    for (const FOptimizationIssue& Issue : LevelIssues)
+    {
+        AllIssues.Add(MakeShared<FOptimizationIssue>(Issue));
+    }
+
+    // Apply filter
+    CurrentFilter = EFilterType::All;
+    ApplyFilter();
+
+    // Complete
+    UpdateProgress(LOCTEXT("ProgressLevelComplete", "Level analysis complete!"), 1.0f);
+    FPlatformProcess::Sleep(0.5f);  // Показать 100% подольше
+
+    // Hide progress bar
+    if (ProgressBar.IsValid())
+    {
+        ProgressBar->SetVisibility(EVisibility::Collapsed);
+    }
+    if (ProgressText.IsValid())
+    {
+        ProgressText->SetVisibility(EVisibility::Collapsed);
+    }
+
+    // Update status
+    FText StatusMessage = FText::Format(
+        LOCTEXT("LevelAnalysisComplete", "Level analysis complete! Found {0} issues."),
+        FText::AsNumber(AllIssues.Num())
+    );
+    StatusText->SetText(StatusMessage);
+
+    UE_LOG(LogTemp, Warning, TEXT("=== Level Analysis Complete: %d issues found ==="), AllIssues.Num());
+
+    return FReply::Handled();
 }
 
 
@@ -773,12 +882,8 @@ void SOptimizationWindow::UpdateProgress(const FText& CurrentTask, float Progres
 {
     if (ProgressBar.IsValid())
     {
-        // Cast to SProgressBar to access SetPercent
-        TSharedPtr<SProgressBar> ProgressBarWidget = StaticCastSharedPtr<SProgressBar>(ProgressBar);
-        if (ProgressBarWidget.IsValid())
-        {
-            ProgressBarWidget->SetPercent(Progress);
-        }
+        ProgressBar->SetPercent(Progress);
+        ProgressBar->SetVisibility(EVisibility::Visible);
     }
 
     if (ProgressText.IsValid())
@@ -789,10 +894,19 @@ void SOptimizationWindow::UpdateProgress(const FText& CurrentTask, float Progres
             FText::AsNumber(FMath::RoundToInt(Progress * 100))
         );
         ProgressText->SetText(ProgressMessage);
+        ProgressText->SetVisibility(EVisibility::Visible);
     }
 
-    // Force UI update
+    if (StatusText.IsValid())
+    {
+        StatusText->SetText(CurrentTask);
+    }
+
+    // КРИТИЧНО: Принудительное обновление UI
     FSlateApplication::Get().PumpMessages();
+    FSlateApplication::Get().Tick();  // ← Добавьте эту строку!
+
+    UE_LOG(LogTemp, Warning, TEXT("Progress updated: %.1f%% - %s"), Progress * 100, *CurrentTask.ToString());
 }
 
 #undef LOCTEXT_NAMESPACE
