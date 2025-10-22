@@ -4,6 +4,9 @@
 #include "UObject/Object.h"
 #include "OptimizationAnalyzer.generated.h"
 
+// Forward declarations
+class UEdGraphNode;
+
 UENUM(BlueprintType)
 enum class EOptimizationSeverity : uint8
 {
@@ -13,7 +16,7 @@ enum class EOptimizationSeverity : uint8
 };
 
 UENUM(BlueprintType)
-enum class EOptimizationCategory : uint8  // ← НОВОЕ!
+enum class EOptimizationCategory : uint8
 {
     Mesh,
     Texture,
@@ -29,25 +32,32 @@ struct FOptimizationIssue
 {
     GENERATED_BODY()
 
-    UPROPERTY()
+    FOptimizationIssue()
+        : Severity(EOptimizationSeverity::Info)
+        , Category(EOptimizationCategory::Other)
+        , EstimatedImpact(0.0f)
+    {
+    }
+
+    UPROPERTY(BlueprintReadWrite)
     FString Title;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     FString Description;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     EOptimizationSeverity Severity;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     EOptimizationCategory Category;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     FString AssetPath;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     float EstimatedImpact; // 0-100 scale
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadWrite)
     FString SuggestedFix;
 };
 
@@ -60,7 +70,7 @@ public:
     // Analysis functions
     TArray<FOptimizationIssue> AnalyzeCurrentLevel();
     TArray<FOptimizationIssue> AnalyzeProject();
-    
+
     // Specific checks
     TArray<FOptimizationIssue> CheckMeshes();
     TArray<FOptimizationIssue> CheckTextures();
@@ -68,14 +78,16 @@ public:
     TArray<FOptimizationIssue> CheckBlueprints();
     TArray<FOptimizationIssue> CheckAudio();
     TArray<FOptimizationIssue> CheckParticleSystems();
-    
+
     // Configuration
     UPROPERTY()
     int32 MaxTrianglesPerMesh = 100000;
-    
+
     UPROPERTY()
     int32 MaxTextureSize = 2048;
-    
+
     UPROPERTY()
-    int32 MaxBlueprintNodes = 500;
+    int32 MaxBlueprintNodes = 200;
+
+
 };

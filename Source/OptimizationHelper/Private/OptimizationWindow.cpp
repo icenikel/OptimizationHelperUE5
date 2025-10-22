@@ -204,6 +204,17 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                 .OnClicked(this, &SOptimizationWindow::OnFilterTextures)
                                 .ToolTipText(LOCTEXT("FilterTexturesTooltip", "Show only texture issues"))
                         ]
+
+                        // Blueprints button
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterBlueprints", "Blueprints"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterBlueprints)
+                                .ToolTipText(LOCTEXT("FilterBlueprintsTooltip", "Show only blueprint issues"))
+                        ]
                 ]
 
             // Buttons row
@@ -595,7 +606,6 @@ FReply SOptimizationWindow::OnAnalyzeCurrentLevelClicked()
 }
 
 
-
 void SOptimizationWindow::OnMaxTrianglesChanged(float NewValue)
 {
     if (Analyzer)
@@ -645,6 +655,13 @@ FReply SOptimizationWindow::OnFilterInfo()
 FReply SOptimizationWindow::OnFilterMeshes()
 {
     CurrentFilter = EFilterType::Meshes;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterBlueprints()
+{
+    CurrentFilter = EFilterType::Blueprints;
     ApplyFilter();
     return FReply::Handled();
 }
@@ -710,6 +727,16 @@ void SOptimizationWindow::ApplyFilter()
         for (const auto& Issue : AllIssues)
         {
             if (Issue->Category == EOptimizationCategory::Texture)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Blueprints:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Category == EOptimizationCategory::Blueprint)
             {
                 FilteredIssues.Add(Issue);
             }

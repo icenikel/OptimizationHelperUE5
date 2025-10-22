@@ -31,6 +31,7 @@ private:
     FReply OnFilterInfo();
     FReply OnFilterMeshes();
     FReply OnFilterTextures();
+    FReply OnFilterBlueprints();
 
     void ApplyFilter();
 
@@ -68,7 +69,8 @@ private:
         Warning,
         Info,
         Meshes,
-        Textures
+        Textures,
+        Blueprints
     };
     EFilterType CurrentFilter;
 

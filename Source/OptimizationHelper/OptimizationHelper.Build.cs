@@ -1,27 +1,31 @@
-using UnrealBuildTool;
+﻿using UnrealBuildTool;
 
 public class OptimizationHelper : ModuleRules
 {
     public OptimizationHelper(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        
-        PublicDependencyModuleNames.AddRange(new string[] 
-        { 
+
+        PublicDependencyModuleNames.AddRange(new string[]
+        {
             "Core",
             "CoreUObject",
             "Engine"
         });
 
-        PrivateDependencyModuleNames.AddRange(new string[] 
-        { 
+        PrivateDependencyModuleNames.AddRange(new string[]
+        {
             "UnrealEd",
             "AssetRegistry",
-            "Slate",              // Added for UI
-            "SlateCore",          // Added for UI
-            "InputCore",          // Added for UI
-            "ToolMenus",           // Added for menu integration
-            "ContentBrowser"
+            "Slate",
+            "SlateCore",
+            "InputCore",
+            "ToolMenus",
+            "ContentBrowser",
+            "BlueprintGraph",      // ← ДОБАВИТЬ для работы с BP
+            "Kismet",              // ← ДОБАВИТЬ для Blueprint
+            "KismetCompiler",      // ← ДОБАВИТЬ для анализа BP
+            "GraphEditor"          // ← ДОБАВИТЬ для EdGraph
         });
     }
 }

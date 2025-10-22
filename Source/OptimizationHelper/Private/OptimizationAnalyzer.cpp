@@ -1,4 +1,4 @@
-#include "OptimizationAnalyzer.h"
+﻿#include "OptimizationAnalyzer.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -6,8 +6,11 @@
 #include "Engine/Blueprint.h"
 #include "Sound/SoundWave.h"
 #include "Particles/ParticleSystem.h"
-#include "Editor.h" 
-#include "EngineUtils.h" 
+#include "Editor.h"
+#include "EngineUtils.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
+
 
 TArray<FOptimizationIssue> UOptimizationAnalyzer::AnalyzeProject()
 {
@@ -323,6 +326,111 @@ TArray<FOptimizationIssue> UOptimizationAnalyzer::CheckMaterials()
 TArray<FOptimizationIssue> UOptimizationAnalyzer::CheckBlueprints()
 {
     TArray<FOptimizationIssue> Issues;
+
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+    TArray<FAssetData> BlueprintAssets;
+    AssetRegistryModule.Get().GetAssetsByClass(
+        UBlueprint::StaticClass()->GetClassPathName(),
+        BlueprintAssets
+    );
+
+    UE_LOG(LogTemp, Log, TEXT("Checking %d blueprints..."), BlueprintAssets.Num());
+
+    for (const FAssetData& AssetData : BlueprintAssets)
+    {
+        UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
+        if (!Blueprint) continue;
+
+        // Skip engine content
+        FString PackagePath = AssetData.PackageName.ToString();
+        if (PackagePath.StartsWith(TEXT("/Engine/")))
+        {
+            continue;
+        }
+
+        int32 TotalNodes = 0;
+        bool bHasEventTick = false;
+
+        // Count nodes in all graphs
+        for (UEdGraph* Graph : Blueprint->UbergraphPages)
+        {
+            if (!Graph) continue;
+
+            for (UEdGraphNode* Node : Graph->Nodes)
+            {
+                if (!Node) continue;
+
+                TotalNodes++;
+
+                // Check for Event Tick
+                FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                if (NodeTitle.Contains(TEXT("Event Tick")))
+                {
+                    bHasEventTick = true;
+                }
+            }
+        }
+
+        // Check function graphs as well
+        for (UEdGraph* FunctionGraph : Blueprint->FunctionGraphs)
+        {
+            if (!FunctionGraph) continue;
+
+            for (UEdGraphNode* Node : FunctionGraph->Nodes)
+            {
+                if (Node) TotalNodes++;
+            }
+        }
+
+        // Issue 1: Too many nodes
+        if (TotalNodes > MaxBlueprintNodes)
+        {
+            FOptimizationIssue Issue;
+            Issue.Category = EOptimizationCategory::Blueprint;
+            Issue.Title = FString::Printf(TEXT("Complex Blueprint: %s"), *Blueprint->GetName());
+
+            if (TotalNodes > MaxBlueprintNodes * 2)
+            {
+                Issue.Severity = EOptimizationSeverity::Critical;
+                Issue.EstimatedImpact = 80.0f;
+            }
+            else
+            {
+                Issue.Severity = EOptimizationSeverity::Warning;
+                Issue.EstimatedImpact = 60.0f;
+            }
+
+            Issue.Description = FString::Printf(
+                TEXT("Blueprint has %d nodes (threshold: %d). Complex blueprints can cause compilation and performance issues."),
+                TotalNodes,
+                MaxBlueprintNodes
+            );
+            Issue.AssetPath = AssetData.GetObjectPathString();
+            Issue.SuggestedFix = TEXT("Refactor into smaller blueprints or move logic to C++");
+            Issues.Add(Issue);
+        }
+
+        // Issue 2: Has Event Tick (any Event Tick is potentially problematic)
+        if (bHasEventTick && TotalNodes > 100)
+        {
+            FOptimizationIssue Issue;
+            Issue.Category = EOptimizationCategory::Blueprint;
+            Issue.Title = FString::Printf(TEXT("Blueprint with Event Tick: %s"), *Blueprint->GetName());
+            Issue.Severity = EOptimizationSeverity::Warning;
+            Issue.EstimatedImpact = 65.0f;
+            Issue.Description = FString::Printf(
+                TEXT("Blueprint contains Event Tick with %d total nodes. Event Tick runs every frame."),
+                TotalNodes
+            );
+            Issue.AssetPath = AssetData.GetObjectPathString();
+            Issue.SuggestedFix = TEXT("Consider using Timers instead of Tick, or reduce tick frequency");
+            Issues.Add(Issue);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Blueprint check complete: %d issues found"), Issues.Num());
     return Issues;
 }
 
