@@ -47,6 +47,7 @@ private:
     // Settings handlers
     void OnMaxTrianglesChanged(float NewValue);
     void OnMaxTextureSizeChanged(float NewValue);
+    void OnMaxBlueprintNodesChanged(float NewValue);
 
     void UpdateProgress(const FText& CurrentTask, float Progress);
 
@@ -60,6 +61,7 @@ private:
     TSharedPtr<SProgressBar> ProgressBar;  // ← НОВОЕ!
     TSharedPtr<SSpinBox<float>> MaxTrianglesSpinBox;
     TSharedPtr<SSpinBox<float>> MaxTextureSizeSpinBox;
+    TSharedPtr<SSpinBox<float>> MaxBlueprintNodesSpinBox;
 
     // Filter state
     enum class EFilterType

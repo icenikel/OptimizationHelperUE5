@@ -20,6 +20,7 @@
 void SOptimizationWindow::Construct(const FArguments& InArgs)
 {
     Analyzer = NewObject<UOptimizationAnalyzer>();
+    Analyzer->MaxBlueprintNodes = 200;
     CurrentFilter = EFilterType::All;
 
     ChildSlot
@@ -112,6 +113,30 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                                         .Delta(512.0f)
                                                         .Value(2048.0f)
                                                         .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSizeChanged)
+                                                ]
+                                        ]
+
+                                    // Max Blueprint Nodes
+                                    + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5.0f, 0.0f)
+                                        [
+                                            SNew(SVerticalBox)
+                                                + SVerticalBox::Slot()
+                                                .AutoHeight()
+                                                [
+                                                    SNew(STextBlock)
+                                                        .Text(LOCTEXT("MaxBlueprintNodes", "Max Blueprint Nodes"))
+                                                ]
+                                                + SVerticalBox::Slot()
+                                                .AutoHeight()
+                                                [
+                                                    SAssignNew(MaxBlueprintNodesSpinBox, SSpinBox<float>)
+                                                        .MinValue(100.0f)
+                                                        .MaxValue(2000.0f)
+                                                        .Delta(50.0f)
+                                                        .Value(200.0f)  // ← Значение по умолчанию
+                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxBlueprintNodesChanged)
                                                 ]
                                         ]
                                 ]
@@ -621,6 +646,15 @@ void SOptimizationWindow::OnMaxTextureSizeChanged(float NewValue)
     {
         Analyzer->MaxTextureSize = FMath::RoundToInt(NewValue);
         UE_LOG(LogTemp, Log, TEXT("Max texture size changed to: %d"), FMath::RoundToInt(NewValue));
+    }
+}
+
+void SOptimizationWindow::OnMaxBlueprintNodesChanged(float NewValue)
+{
+    if (Analyzer)
+    {
+        Analyzer->MaxBlueprintNodes = FMath::RoundToInt(NewValue);
+        UE_LOG(LogTemp, Log, TEXT("Max Blueprint nodes changed to: %d"), FMath::RoundToInt(NewValue));
     }
 }
 
