@@ -37,6 +37,19 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
                 ]
 
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10.0f, 2.0f)
+                [
+                    SNew(STextBlock)
+                        .Text(LOCTEXT("ImpactLegend",
+                            "Impact: estimated performance cost (0-100%). Higher = more urgent to fix. "
+                            "Calculated based on how much threshold is exceeded."))
+                        .ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Italic", 9))
+                        .AutoWrapText(true)
+                ]
+
                 // Settings panel
                 + SVerticalBox::Slot()
                 .AutoHeight()
