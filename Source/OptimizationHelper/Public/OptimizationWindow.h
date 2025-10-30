@@ -32,6 +32,7 @@ private:
     FReply OnFilterMeshes();
     FReply OnFilterTextures();
     FReply OnFilterBlueprints();
+    FReply OnFilterMaterials();
 
     void ApplyFilter();
 
@@ -48,6 +49,7 @@ private:
     void OnMaxTrianglesChanged(float NewValue);
     void OnMaxTextureSizeChanged(float NewValue);
     void OnMaxBlueprintNodesChanged(float NewValue);
+    void OnMaxTextureSamplesChanged(float NewValue);
 
     void UpdateProgress(const FText& CurrentTask, float Progress);
 
@@ -57,11 +59,12 @@ private:
     TArray<TSharedPtr<FOptimizationIssue>> FilteredIssues;
     TSharedPtr<SListView<TSharedPtr<FOptimizationIssue>>> IssueListView;
     TSharedPtr<STextBlock> StatusText;
-    TSharedPtr<STextBlock> ProgressText;  // ← НОВОЕ!
-    TSharedPtr<SProgressBar> ProgressBar;  // ← НОВОЕ!
+    TSharedPtr<STextBlock> ProgressText; 
+    TSharedPtr<SProgressBar> ProgressBar;
     TSharedPtr<SSpinBox<float>> MaxTrianglesSpinBox;
     TSharedPtr<SSpinBox<float>> MaxTextureSizeSpinBox;
     TSharedPtr<SSpinBox<float>> MaxBlueprintNodesSpinBox;
+    TSharedPtr<SSpinBox<float>> MaxTextureSamplesSpinBox;
 
     // Filter state
     enum class EFilterType
@@ -72,7 +75,8 @@ private:
         Info,
         Meshes,
         Textures,
-        Blueprints
+        Blueprints,
+        Materials
     };
     EFilterType CurrentFilter;
 

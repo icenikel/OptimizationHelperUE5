@@ -3,6 +3,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialInstance.h"
 #include "Engine/Blueprint.h"
 #include "Sound/SoundWave.h"
 #include "Particles/ParticleSystem.h"
@@ -347,6 +348,194 @@ TArray<FOptimizationIssue> UOptimizationAnalyzer::CheckTextures()
 TArray<FOptimizationIssue> UOptimizationAnalyzer::CheckMaterials()
 {
     TArray<FOptimizationIssue> Issues;
+
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+    TArray<FAssetData> MaterialAssets;
+    AssetRegistryModule.Get().GetAssetsByClass(
+        UMaterial::StaticClass()->GetClassPathName(),
+        MaterialAssets
+    );
+
+    UE_LOG(LogTemp, Log, TEXT("Checking %d materials..."), MaterialAssets.Num());
+
+    for (const FAssetData& AssetData : MaterialAssets)
+    {
+        UMaterial* Material = Cast<UMaterial>(AssetData.GetAsset());
+        if (!Material) continue;
+
+        // Skip engine materials
+        FString PackagePath = AssetData.PackageName.ToString();
+        if (PackagePath.StartsWith(TEXT("/Engine/")))
+        {
+            continue;
+        }
+
+        // Issue 1: Count texture samples
+        TArray<UTexture*> UsedTextures;
+        Material->GetUsedTextures(UsedTextures, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
+
+        int32 TextureSampleCount = UsedTextures.Num();
+
+        // ← ИСПОЛЬЗОВАНИЕ ПЕРЕМЕННОЙ
+        if (TextureSampleCount > MaxTextureSamplesPerMaterial)
+        {
+            FOptimizationIssue Issue;
+            Issue.Category = EOptimizationCategory::Material;
+            Issue.Title = FString::Printf(TEXT("Too Many Textures: %s"), *Material->GetName());
+
+            // Calculate impact based on texture count
+            float ExcessRatio = (float)TextureSampleCount / MaxTextureSamplesPerMaterial;  // ← ПЕРЕМЕННАЯ
+            float BaseImpact = FMath::Clamp((ExcessRatio - 1.0f) * 50.0f + 20.0f, 20.0f, 95.0f);
+            Issue.EstimatedImpact = BaseImpact;
+
+            if (BaseImpact > 70.0f)
+            {
+                Issue.Severity = EOptimizationSeverity::Critical;
+            }
+            else if (BaseImpact > 45.0f)
+            {
+                Issue.Severity = EOptimizationSeverity::Warning;
+            }
+            else
+            {
+                Issue.Severity = EOptimizationSeverity::Info;
+            }
+
+            Issue.Description = FString::Printf(
+                TEXT("Material uses %d texture samples (recommended: ≤%d). Each texture sample impacts GPU performance."),
+                TextureSampleCount,
+                MaxTextureSamplesPerMaterial  // ← ПЕРЕМЕННАЯ
+            );
+            Issue.AssetPath = AssetData.GetObjectPathString();
+            Issue.SuggestedFix = TEXT("Reduce texture count, combine textures into atlases, or use texture packing (RGB channels)");
+            Issues.Add(Issue);
+        }
+
+        // Issue 2: Check if Two Sided is enabled
+        if (Material->IsTwoSided())
+        {
+            FOptimizationIssue Issue;
+            Issue.Category = EOptimizationCategory::Material;
+            Issue.Title = FString::Printf(TEXT("Two-Sided Material: %s"), *Material->GetName());
+            Issue.Severity = EOptimizationSeverity::Warning;
+            Issue.EstimatedImpact = 35.0f;
+            Issue.Description = TEXT("Material is set to Two-Sided, which doubles rendering cost. Only use when absolutely necessary (foliage, cloth).");
+            Issue.AssetPath = AssetData.GetObjectPathString();
+            Issue.SuggestedFix = TEXT("Disable Two-Sided if back faces are never visible, or use proper two-sided geometry");
+            Issues.Add(Issue);
+        }
+
+        // Issue 3: Check for expensive blend modes
+        if (Material->GetBlendMode() == BLEND_Translucent ||
+            Material->GetBlendMode() == BLEND_Additive ||
+            Material->GetBlendMode() == BLEND_Modulate)
+        {
+            // Only flag if it also has many textures or is complex
+            if (TextureSampleCount > 5)
+            {
+                FOptimizationIssue Issue;
+                Issue.Category = EOptimizationCategory::Material;
+                Issue.Title = FString::Printf(TEXT("Complex Translucent Material: %s"), *Material->GetName());
+                Issue.Severity = EOptimizationSeverity::Warning;
+
+                float BaseImpact = FMath::Clamp(TextureSampleCount * 8.0f, 30.0f, 80.0f);
+                Issue.EstimatedImpact = BaseImpact;
+
+                Issue.Description = FString::Printf(
+                    TEXT("Translucent material with %d textures. Translucency is expensive and doesn't support many optimizations."),
+                    TextureSampleCount
+                );
+                Issue.AssetPath = AssetData.GetObjectPathString();
+                Issue.SuggestedFix = TEXT("Use Masked blend mode if possible, reduce texture samples, or use simpler shader");
+                Issues.Add(Issue);
+            }
+        }
+
+        // Issue 4: Check shader complexity
+        int32 EstimatedInstructions = 0;
+        EstimatedInstructions += 50;
+        EstimatedInstructions += TextureSampleCount * 15;
+
+        if (Material->IsTwoSided())
+        {
+            EstimatedInstructions *= 2;
+        }
+
+        if (Material->GetBlendMode() == BLEND_Translucent)
+        {
+            EstimatedInstructions += 30;
+        }
+
+        if (EstimatedInstructions > 300)
+        {
+            FOptimizationIssue Issue;
+            Issue.Category = EOptimizationCategory::Material;
+            Issue.Title = FString::Printf(TEXT("Complex Shader: %s"), *Material->GetName());
+
+            float ComplexityRatio = (float)EstimatedInstructions / 300.0f;
+            float BaseImpact = FMath::Clamp((ComplexityRatio - 1.0f) * 60.0f + 25.0f, 25.0f, 90.0f);
+            Issue.EstimatedImpact = BaseImpact;
+
+            if (BaseImpact > 70.0f)
+            {
+                Issue.Severity = EOptimizationSeverity::Critical;
+            }
+            else if (BaseImpact > 45.0f)
+            {
+                Issue.Severity = EOptimizationSeverity::Warning;
+            }
+            else
+            {
+                Issue.Severity = EOptimizationSeverity::Info;
+            }
+
+            Issue.Description = FString::Printf(
+                TEXT("Material has approximately %d shader instructions (threshold: 300). Complex shaders impact GPU performance."),
+                EstimatedInstructions
+            );
+            Issue.AssetPath = AssetData.GetObjectPathString();
+            Issue.SuggestedFix = TEXT("Simplify shader logic, use Material Instances, or create LOD materials");
+            Issues.Add(Issue);
+        }
+    }
+
+    // Check Material Instances usage
+    TArray<FAssetData> MaterialInstanceAssets;
+    AssetRegistryModule.Get().GetAssetsByClass(
+        UMaterialInstance::StaticClass()->GetClassPathName(),
+        MaterialInstanceAssets
+    );
+
+    UE_LOG(LogTemp, Log, TEXT("Checking %d material instances..."), MaterialInstanceAssets.Num());
+
+    int32 BaseMatCount = MaterialAssets.Num();
+    int32 InstanceCount = MaterialInstanceAssets.Num();
+
+    if (BaseMatCount > 10 && InstanceCount < BaseMatCount * 2)
+    {
+        FOptimizationIssue Issue;
+        Issue.Category = EOptimizationCategory::Material;
+        Issue.Title = TEXT("Project: Underusing Material Instances");
+        Issue.Severity = EOptimizationSeverity::Warning;
+
+        float InstanceRatio = (float)InstanceCount / BaseMatCount;
+        float BaseImpact = FMath::Clamp((3.0f - InstanceRatio) * 20.0f, 25.0f, 60.0f);
+        Issue.EstimatedImpact = BaseImpact;
+
+        Issue.Description = FString::Printf(
+            TEXT("Project has %d base materials but only %d instances (ratio: %.1f:1). Recommended ratio: >3:1"),
+            BaseMatCount,
+            InstanceCount,
+            InstanceRatio
+        );
+        Issue.AssetPath = TEXT("Project-wide");
+        Issue.SuggestedFix = TEXT("Create Material Instances instead of new base materials. Use parameter-driven master materials.");
+        Issues.Add(Issue);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Material check complete: %d issues found"), Issues.Num());
     return Issues;
 }
 

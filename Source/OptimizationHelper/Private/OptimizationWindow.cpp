@@ -21,6 +21,7 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
 {
     Analyzer = NewObject<UOptimizationAnalyzer>();
     Analyzer->MaxBlueprintNodes = 200;
+    Analyzer->MaxTextureSamplesPerMaterial = 8;
     CurrentFilter = EFilterType::All;
 
     ChildSlot
@@ -50,8 +51,8 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         .AutoWrapText(true)
                 ]
 
-                // Settings panel
-                + SVerticalBox::Slot()
+            // Settings panel
+            + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10.0f)
                 [
@@ -70,7 +71,7 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
                                 ]
 
-                                // Settings row
+                                // ← ПЕРВЫЙ РЯД настроек
                                 + SVerticalBox::Slot()
                                 .AutoHeight()
                                 .Padding(0.0f, 5.0f)
@@ -83,14 +84,12 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                         .Padding(5.0f, 0.0f)
                                         [
                                             SNew(SVerticalBox)
-
                                                 + SVerticalBox::Slot()
                                                 .AutoHeight()
                                                 [
                                                     SNew(STextBlock)
                                                         .Text(LOCTEXT("MaxTriangles", "Max Triangles per Mesh"))
                                                 ]
-
                                                 + SVerticalBox::Slot()
                                                 .AutoHeight()
                                                 [
@@ -109,14 +108,12 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                         .Padding(5.0f, 0.0f)
                                         [
                                             SNew(SVerticalBox)
-
                                                 + SVerticalBox::Slot()
                                                 .AutoHeight()
                                                 [
                                                     SNew(STextBlock)
                                                         .Text(LOCTEXT("MaxTextureSize", "Max Texture Size"))
                                                 ]
-
                                                 + SVerticalBox::Slot()
                                                 .AutoHeight()
                                                 [
@@ -148,9 +145,56 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                                         .MinValue(100.0f)
                                                         .MaxValue(2000.0f)
                                                         .Delta(50.0f)
-                                                        .Value(200.0f)  // ← Значение по умолчанию
+                                                        .Value(200.0f)
                                                         .OnValueChanged(this, &SOptimizationWindow::OnMaxBlueprintNodesChanged)
                                                 ]
+                                        ]
+                                ]
+
+                            // ← ВТОРОЙ РЯД настроек (НОВЫЙ)
+                            + SVerticalBox::Slot()
+                                .AutoHeight()
+                                .Padding(0.0f, 5.0f)
+                                [
+                                    SNew(SHorizontalBox)
+
+                                        // Max Texture Samples Per Material
+                                        + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5.0f, 0.0f)
+                                        [
+                                            SNew(SVerticalBox)
+                                                + SVerticalBox::Slot()
+                                                .AutoHeight()
+                                                [
+                                                    SNew(STextBlock)
+                                                        .Text(LOCTEXT("MaxTextureSamples", "Max Texture Samples/Material"))
+                                                ]
+                                                + SVerticalBox::Slot()
+                                                .AutoHeight()
+                                                [
+                                                    SAssignNew(MaxTextureSamplesSpinBox, SSpinBox<float>)
+                                                        .MinValue(4.0f)
+                                                        .MaxValue(16.0f)
+                                                        .Delta(1.0f)
+                                                        .Value(8.0f)
+                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSamplesChanged)
+                                                ]
+                                        ]
+
+                                    // Placeholder slots to keep layout aligned (2 empty slots)
+                                    + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5.0f, 0.0f)
+                                        [
+                                            SNew(SBox)  // Empty placeholder
+                                        ]
+
+                                        + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5.0f, 0.0f)
+                                        [
+                                            SNew(SBox)  // Empty placeholder
                                         ]
                                 ]
                         ]
@@ -252,6 +296,17 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                                 .Text(LOCTEXT("FilterBlueprints", "Blueprints"))
                                 .OnClicked(this, &SOptimizationWindow::OnFilterBlueprints)
                                 .ToolTipText(LOCTEXT("FilterBlueprintsTooltip", "Show only blueprint issues"))
+                        ]
+
+                        // Materials button
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(2.0f, 0.0f)
+                        [
+                            SNew(SButton)
+                                .Text(LOCTEXT("FilterMaterials", "Materials"))
+                                .OnClicked(this, &SOptimizationWindow::OnFilterMaterials)
+                                .ToolTipText(LOCTEXT("FilterMaterialsTooltip", "Show only material issues"))
                         ]
                 ]
 
@@ -671,6 +726,15 @@ void SOptimizationWindow::OnMaxBlueprintNodesChanged(float NewValue)
     }
 }
 
+void SOptimizationWindow::OnMaxTextureSamplesChanged(float NewValue)
+{
+    if (Analyzer)
+    {
+        Analyzer->MaxTextureSamplesPerMaterial = FMath::RoundToInt(NewValue);
+        UE_LOG(LogTemp, Log, TEXT("Max texture samples per material changed to: %d"), FMath::RoundToInt(NewValue));
+    }
+}
+
 FReply SOptimizationWindow::OnFilterAll()
 {
     CurrentFilter = EFilterType::All;
@@ -716,6 +780,13 @@ FReply SOptimizationWindow::OnFilterBlueprints()
 FReply SOptimizationWindow::OnFilterTextures()
 {
     CurrentFilter = EFilterType::Textures;
+    ApplyFilter();
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnFilterMaterials()
+{
+    CurrentFilter = EFilterType::Materials;
     ApplyFilter();
     return FReply::Handled();
 }
@@ -784,6 +855,16 @@ void SOptimizationWindow::ApplyFilter()
         for (const auto& Issue : AllIssues)
         {
             if (Issue->Category == EOptimizationCategory::Blueprint)
+            {
+                FilteredIssues.Add(Issue);
+            }
+        }
+        break;
+
+    case EFilterType::Materials:
+        for (const auto& Issue : AllIssues)
+        {
+            if (Issue->Category == EOptimizationCategory::Material)
             {
                 FilteredIssues.Add(Issue);
             }

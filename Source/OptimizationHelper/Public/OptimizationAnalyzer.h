@@ -89,5 +89,8 @@ public:
     UPROPERTY()
     int32 MaxBlueprintNodes = 200;
 
+    UPROPERTY()
+    int32 MaxTextureSamplesPerMaterial = 8;
+
 
 };
