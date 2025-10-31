@@ -1,5 +1,6 @@
 #include "OptimizationHelperModule.h"
-#include "OptimizationWindow.h"  // ← Убедитесь, что эта строка есть!
+#include "OptimizationWindow.h"  
+#include "PerformanceMonitorWidget.h"
 #include "ToolMenus.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
@@ -27,12 +28,13 @@ void FOptimizationHelperModule::ShutdownModule()
 void FOptimizationHelperModule::RegisterMenus()
 {
     FToolMenuOwnerScoped OwnerScoped(this);
-    
+
     UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
     if (Menu)
     {
         FToolMenuSection& Section = Menu->FindOrAddSection("WindowLayout");
-        
+
+        // Existing entry
         Section.AddMenuEntry(
             "OptimizationHelper",
             LOCTEXT("MenuEntry", "Optimization Helper"),
@@ -40,6 +42,17 @@ void FOptimizationHelperModule::RegisterMenus()
             FSlateIcon(),
             FUIAction(FExecuteAction::CreateRaw(
                 this, &FOptimizationHelperModule::OnOpenOptimizationWindow
+            ))
+        );
+
+        // ← НОВАЯ запись для Performance Monitor
+        Section.AddMenuEntry(
+            "PerformanceMonitor",
+            LOCTEXT("PerformanceMonitorEntry", "Performance Monitor"),
+            LOCTEXT("PerformanceMonitorTooltip", "Opens real-time performance monitor"),
+            FSlateIcon(),
+            FUIAction(FExecuteAction::CreateRaw(
+                this, &FOptimizationHelperModule::OnOpenPerformanceMonitor
             ))
         );
     }
@@ -54,6 +67,24 @@ void FOptimizationHelperModule::OnOpenOptimizationWindow()
         .ClientSize(FVector2D(1200, 700))
         [
             SNew(SOptimizationWindow)  // ← НЕ STextBlock!
+        ];
+
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+
+
+void FOptimizationHelperModule::OnOpenPerformanceMonitor()
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== OPENING PERFORMANCE MONITOR ==="));
+
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(LOCTEXT("PerformanceMonitorTitle", "Performance Monitor"))
+        .ClientSize(FVector2D(300, 250))
+        .SupportsMaximize(false)
+        .SupportsMinimize(true)
+        [
+            SNew(SPerformanceMonitorWidget)
         ];
 
     FSlateApplication::Get().AddWindow(Window);
