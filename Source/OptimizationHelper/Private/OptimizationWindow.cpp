@@ -1,4 +1,5 @@
 #include "OptimizationWindow.h"
+#include "PerformanceMonitorWidget.h" 
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -17,12 +18,14 @@
 
 #define LOCTEXT_NAMESPACE "OptimizationWindow"
 
+
 void SOptimizationWindow::Construct(const FArguments& InArgs)
 {
     Analyzer = NewObject<UOptimizationAnalyzer>();
     Analyzer->MaxBlueprintNodes = 200;
     Analyzer->MaxTextureSamplesPerMaterial = 8;
     CurrentFilter = EFilterType::All;
+    CurrentTab = ETabType::Analysis;  // ← По умолчанию вкладка Analysis
 
     ChildSlot
         [
@@ -38,6 +41,7 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
                 ]
 
+                // Impact Legend
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10.0f, 2.0f)
@@ -51,362 +55,43 @@ void SOptimizationWindow::Construct(const FArguments& InArgs)
                         .AutoWrapText(true)
                 ]
 
-            // Settings panel
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10.0f)
-                [
-                    SNew(SBorder)
-                        .BorderBackgroundColor(FLinearColor(0.1f, 0.1f, 0.1f, 0.5f))
-                        .Padding(10.0f)
-                        [
-                            SNew(SVerticalBox)
-
-                                // Settings title
-                                + SVerticalBox::Slot()
-                                .AutoHeight()
-                                [
-                                    SNew(STextBlock)
-                                        .Text(LOCTEXT("SettingsTitle", "Analysis Settings"))
-                                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
-                                ]
-
-                                // ← ПЕРВЫЙ РЯД настроек
-                                + SVerticalBox::Slot()
-                                .AutoHeight()
-                                .Padding(0.0f, 5.0f)
-                                [
-                                    SNew(SHorizontalBox)
-
-                                        // Max Triangles
-                                        + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SVerticalBox)
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SNew(STextBlock)
-                                                        .Text(LOCTEXT("MaxTriangles", "Max Triangles per Mesh"))
-                                                ]
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SAssignNew(MaxTrianglesSpinBox, SSpinBox<float>)
-                                                        .MinValue(10000.0f)
-                                                        .MaxValue(1000000.0f)
-                                                        .Value(100000.0f)
-                                                        .Delta(10000.0f)
-                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxTrianglesChanged)
-                                                ]
-                                        ]
-
-                                    // Max Texture Size
-                                    + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SVerticalBox)
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SNew(STextBlock)
-                                                        .Text(LOCTEXT("MaxTextureSize", "Max Texture Size"))
-                                                ]
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SAssignNew(MaxTextureSizeSpinBox, SSpinBox<float>)
-                                                        .MinValue(512.0f)
-                                                        .MaxValue(8192.0f)
-                                                        .Delta(512.0f)
-                                                        .Value(2048.0f)
-                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSizeChanged)
-                                                ]
-                                        ]
-
-                                    // Max Blueprint Nodes
-                                    + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SVerticalBox)
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SNew(STextBlock)
-                                                        .Text(LOCTEXT("MaxBlueprintNodes", "Max Blueprint Nodes"))
-                                                ]
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SAssignNew(MaxBlueprintNodesSpinBox, SSpinBox<float>)
-                                                        .MinValue(100.0f)
-                                                        .MaxValue(2000.0f)
-                                                        .Delta(50.0f)
-                                                        .Value(200.0f)
-                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxBlueprintNodesChanged)
-                                                ]
-                                        ]
-                                ]
-
-                            // ← ВТОРОЙ РЯД настроек (НОВЫЙ)
-                            + SVerticalBox::Slot()
-                                .AutoHeight()
-                                .Padding(0.0f, 5.0f)
-                                [
-                                    SNew(SHorizontalBox)
-
-                                        // Max Texture Samples Per Material
-                                        + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SVerticalBox)
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SNew(STextBlock)
-                                                        .Text(LOCTEXT("MaxTextureSamples", "Max Texture Samples/Material"))
-                                                ]
-                                                + SVerticalBox::Slot()
-                                                .AutoHeight()
-                                                [
-                                                    SAssignNew(MaxTextureSamplesSpinBox, SSpinBox<float>)
-                                                        .MinValue(4.0f)
-                                                        .MaxValue(16.0f)
-                                                        .Delta(1.0f)
-                                                        .Value(8.0f)
-                                                        .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSamplesChanged)
-                                                ]
-                                        ]
-
-                                    // Placeholder slots to keep layout aligned (2 empty slots)
-                                    + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SBox)  // Empty placeholder
-                                        ]
-
-                                        + SHorizontalBox::Slot()
-                                        .FillWidth(1.0f)
-                                        .Padding(5.0f, 0.0f)
-                                        [
-                                            SNew(SBox)  // Empty placeholder
-                                        ]
-                                ]
-                        ]
-                ]
-
-            // Filter buttons
+            // ← НОВАЯ СЕКЦИЯ: Tab Buttons
             + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10.0f, 5.0f)
                 [
                     SNew(SHorizontalBox)
 
-                        // Label
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .VAlign(VAlign_Center)
-                        .Padding(5.0f, 0.0f)
-                        [
-                            SNew(STextBlock)
-                                .Text(LOCTEXT("FilterLabel", "Filter:"))
-                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
-                        ]
-
-                        // All button
+                        // Analysis Tab Button
                         + SHorizontalBox::Slot()
                         .AutoWidth()
                         .Padding(2.0f, 0.0f)
                         [
                             SNew(SButton)
-                                .Text(LOCTEXT("FilterAll", "All"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterAll)
-                                .ToolTipText(LOCTEXT("FilterAllTooltip", "Show all issues"))
+                                .Text(LOCTEXT("AnalysisTab", "Analysis"))
+                                .OnClicked(this, &SOptimizationWindow::OnSwitchToAnalysisTab)
+                                .ButtonColorAndOpacity(this, &SOptimizationWindow::GetAnalysisTabColor)
                         ]
 
-                        // Critical button
+                        // Performance Monitor Tab Button
                         + SHorizontalBox::Slot()
                         .AutoWidth()
                         .Padding(2.0f, 0.0f)
                         [
                             SNew(SButton)
-                                .Text(LOCTEXT("FilterCritical", "Critical"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterCritical)
-                                .ButtonColorAndOpacity(FLinearColor(0.8f, 0.2f, 0.2f, 1.0f))
-                                .ToolTipText(LOCTEXT("FilterCriticalTooltip", "Show only critical issues"))
-                        ]
-
-                    // Warning button
-                    + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterWarning", "Warning"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterWarning)
-                                .ButtonColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.2f, 1.0f))
-                                .ToolTipText(LOCTEXT("FilterWarningTooltip", "Show only warnings"))
-                        ]
-
-                    // Info button
-                    + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterInfo", "Info"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterInfo)
-                                .ButtonColorAndOpacity(FLinearColor(0.2f, 0.8f, 0.2f, 1.0f))
-                                .ToolTipText(LOCTEXT("FilterInfoTooltip", "Show only info messages"))
-                        ]
-
-                    // Meshes button
-                    + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterMeshes", "Meshes"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterMeshes)
-                                .ToolTipText(LOCTEXT("FilterMeshesTooltip", "Show only mesh issues"))
-                        ]
-
-                        // Textures button
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterTextures", "Textures"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterTextures)
-                                .ToolTipText(LOCTEXT("FilterTexturesTooltip", "Show only texture issues"))
-                        ]
-
-                        // Blueprints button
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterBlueprints", "Blueprints"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterBlueprints)
-                                .ToolTipText(LOCTEXT("FilterBlueprintsTooltip", "Show only blueprint issues"))
-                        ]
-
-                        // Materials button
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(2.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("FilterMaterials", "Materials"))
-                                .OnClicked(this, &SOptimizationWindow::OnFilterMaterials)
-                                .ToolTipText(LOCTEXT("FilterMaterialsTooltip", "Show only material issues"))
+                                .Text(LOCTEXT("PerformanceTab", "Performance Monitor"))
+                                .OnClicked(this, &SOptimizationWindow::OnSwitchToPerformanceTab)
+                                .ButtonColorAndOpacity(this, &SOptimizationWindow::GetPerformanceTabColor)
                         ]
                 ]
 
-            // Buttons row
+            // ← Content area (switches between tabs)
             + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10.0f)
-                [
-                    SNew(SHorizontalBox)
-
-                        
-                                // AnalyzeCurrentLevel
-                                + SHorizontalBox::Slot()
-                                .FillWidth(1.0f)
-                                .Padding(5.0f, 0.0f)
-                                [
-                                    SNew(SButton)
-                                        .Text(LOCTEXT("AnalyzeCurrentLevelButton", "Analyze Current Level"))
-                                        .ToolTipText(LOCTEXT("AnalyzeCurrentLevelTooltip", "Quick analysis of the currently opened level"))
-                                        .OnClicked(this, &SOptimizationWindow::OnAnalyzeCurrentLevelClicked)
-                                        .HAlign(HAlign_Center)
-                                ]
-            
-           
-                        // Analyze button
-                        + SHorizontalBox::Slot()
-                        .FillWidth(1.0f)
-                        .Padding(5.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("AnalyzeButton", "Analyze Project"))
-                                .OnClicked(this, &SOptimizationWindow::OnAnalyzeClicked)
-                                .HAlign(HAlign_Center)
-                        ]
-
-                        // Export button
-                        + SHorizontalBox::Slot()
-                        .FillWidth(1.0f)
-                        .Padding(5.0f, 0.0f)
-                        [
-                            SNew(SButton)
-                                .Text(LOCTEXT("ExportButton", "Export to CSV"))
-                                .OnClicked(this, &SOptimizationWindow::OnExportClicked)
-                                .HAlign(HAlign_Center)
-                        ]
-                ]
-
-
-            // Status and Progress section  ← ОБНОВЛЕНО!
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10.0f)
-                [
-                    SNew(SVerticalBox)
-
-                        // Status text
-                        + SVerticalBox::Slot()
-                        .AutoHeight()
-                        [
-                            SAssignNew(StatusText, STextBlock)
-                                .Text(LOCTEXT("StatusReady", "Ready to analyze. Click the button above."))
-                        ]
-
-                        // Progress text
-                        + SVerticalBox::Slot()
-                        .AutoHeight()
-                        .Padding(0.0f, 5.0f)
-                        [
-                            SAssignNew(ProgressText, STextBlock)
-                                .Text(FText::GetEmpty())
-                                .Visibility(EVisibility::Collapsed)  // Hidden by default
-                        ]
-
-                        // Progress bar
-                        + SVerticalBox::Slot()
-                        .AutoHeight()
-                        .Padding(0.0f, 5.0f)
-                        [
-                            SNew(SBox)
-                                .HeightOverride(20.0f)  // Явная высота
-                                [
-                                    SAssignNew(ProgressBar, SProgressBar)
-                                        .Percent(0.0f)  // ← Убрали TOptional
-                                        .FillColorAndOpacity(FLinearColor(0.0f, 0.5f, 1.0f))  // Синий цвет заполнения
-                                        .Visibility(EVisibility::Collapsed)
-                                ]
-                        ]
-                ]
-
-                // Issues list
-                + SVerticalBox::Slot()
                 .FillHeight(1.0f)
-                .Padding(10.0f)
                 [
-                    SNew(SScrollBox)
-                        + SScrollBox::Slot()
+                    SAssignNew(ContentSwitcher, SBox)
                         [
-                            SAssignNew(IssueListView, SListView<TSharedPtr<FOptimizationIssue>>)
-                                .ListItemsSource(&Issues)
-                                .OnGenerateRow(this, &SOptimizationWindow::OnGenerateIssueRow)
+                            CreateAnalysisTab().ToSharedRef()
                         ]
                 ]
         ];
@@ -1062,6 +747,390 @@ void SOptimizationWindow::UpdateProgress(const FText& CurrentTask, float Progres
     FSlateApplication::Get().Tick();  // ← Добавьте эту строку!
 
     UE_LOG(LogTemp, Warning, TEXT("Progress updated: %.1f%% - %s"), Progress * 100, *CurrentTask.ToString());
+}
+
+FReply SOptimizationWindow::OnSwitchToAnalysisTab()
+{
+    CurrentTab = ETabType::Analysis;
+
+    if (ContentSwitcher.IsValid())
+    {
+        ContentSwitcher->SetContent(CreateAnalysisTab().ToSharedRef());
+    }
+
+    return FReply::Handled();
+}
+
+FReply SOptimizationWindow::OnSwitchToPerformanceTab()
+{
+    CurrentTab = ETabType::PerformanceMonitor;
+
+    if (ContentSwitcher.IsValid())
+    {
+        ContentSwitcher->SetContent(CreatePerformanceTab().ToSharedRef());
+    }
+
+    return FReply::Handled();
+}
+
+FSlateColor SOptimizationWindow::GetAnalysisTabColor() const
+{
+    return CurrentTab == ETabType::Analysis ?
+        FSlateColor(FLinearColor(0.0f, 0.5f, 1.0f)) :
+        FSlateColor(FLinearColor(0.3f, 0.3f, 0.3f));
+}
+
+FSlateColor SOptimizationWindow::GetPerformanceTabColor() const
+{
+    return CurrentTab == ETabType::PerformanceMonitor ?
+        FSlateColor(FLinearColor(0.0f, 0.5f, 1.0f)) :
+        FSlateColor(FLinearColor(0.3f, 0.3f, 0.3f));
+}
+
+TSharedPtr<SWidget> SOptimizationWindow::CreateAnalysisTab()
+{
+    return SNew(SVerticalBox)
+
+        // Settings panel
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f)
+        [
+            SNew(SBorder)
+                .BorderBackgroundColor(FLinearColor(0.1f, 0.1f, 0.1f, 0.5f))
+                .Padding(10.0f)
+                [
+                    SNew(SVerticalBox)
+
+                        // Settings title
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        [
+                            SNew(STextBlock)
+                                .Text(LOCTEXT("SettingsTitle", "Analysis Settings"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+                        ]
+
+                        // First row
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(0.0f, 5.0f)
+                        [
+                            SNew(SHorizontalBox)
+
+                                // Max Triangles
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SVerticalBox)
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SNew(STextBlock)
+                                                .Text(LOCTEXT("MaxTriangles", "Max Triangles per Mesh"))
+                                        ]
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SAssignNew(MaxTrianglesSpinBox, SSpinBox<float>)
+                                                .MinValue(10000.0f)
+                                                .MaxValue(1000000.0f)
+                                                .Value(100000.0f)
+                                                .Delta(10000.0f)
+                                                .OnValueChanged(this, &SOptimizationWindow::OnMaxTrianglesChanged)
+                                        ]
+                                ]
+
+                            // Max Texture Size
+                            + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SVerticalBox)
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SNew(STextBlock)
+                                                .Text(LOCTEXT("MaxTextureSize", "Max Texture Size"))
+                                        ]
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SAssignNew(MaxTextureSizeSpinBox, SSpinBox<float>)
+                                                .MinValue(512.0f)
+                                                .MaxValue(8192.0f)
+                                                .Delta(512.0f)
+                                                .Value(2048.0f)
+                                                .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSizeChanged)
+                                        ]
+                                ]
+
+                            // Max Blueprint Nodes
+                            + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SVerticalBox)
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SNew(STextBlock)
+                                                .Text(LOCTEXT("MaxBlueprintNodes", "Max Blueprint Nodes"))
+                                        ]
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SAssignNew(MaxBlueprintNodesSpinBox, SSpinBox<float>)
+                                                .MinValue(100.0f)
+                                                .MaxValue(2000.0f)
+                                                .Delta(50.0f)
+                                                .Value(200.0f)
+                                                .OnValueChanged(this, &SOptimizationWindow::OnMaxBlueprintNodesChanged)
+                                        ]
+                                ]
+                        ]
+
+                    // Second row
+                    + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(0.0f, 5.0f)
+                        [
+                            SNew(SHorizontalBox)
+
+                                // Max Texture Samples
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SVerticalBox)
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SNew(STextBlock)
+                                                .Text(LOCTEXT("MaxTextureSamples", "Max Texture Samples/Material"))
+                                        ]
+                                        + SVerticalBox::Slot()
+                                        .AutoHeight()
+                                        [
+                                            SAssignNew(MaxTextureSamplesSpinBox, SSpinBox<float>)
+                                                .MinValue(4.0f)
+                                                .MaxValue(16.0f)
+                                                .Delta(1.0f)
+                                                .Value(8.0f)
+                                                .OnValueChanged(this, &SOptimizationWindow::OnMaxTextureSamplesChanged)
+                                        ]
+                                ]
+
+                            // Placeholders
+                            + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SBox)
+                                ]
+
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(5.0f, 0.0f)
+                                [
+                                    SNew(SBox)
+                                ]
+                        ]
+                ]
+        ]
+
+    // Filter buttons
+    + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f, 5.0f)
+        [
+            SNew(SHorizontalBox)
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(5.0f, 0.0f)
+                [
+                    SNew(STextBlock)
+                        .Text(LOCTEXT("FilterLabel", "Filter:"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterAll", "All"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterAll)
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterCritical", "Critical"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterCritical)
+                        .ButtonColorAndOpacity(FLinearColor(0.8f, 0.2f, 0.2f, 1.0f))
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterWarning", "Warning"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterWarning)
+                        .ButtonColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.2f, 1.0f))
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterInfo", "Info"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterInfo)
+                        .ButtonColorAndOpacity(FLinearColor(0.2f, 0.8f, 0.2f, 1.0f))
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterMeshes", "Meshes"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterMeshes)
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterTextures", "Textures"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterTextures)
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterBlueprints", "Blueprints"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterBlueprints)
+                ]
+
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(2.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("FilterMaterials", "Materials"))
+                        .OnClicked(this, &SOptimizationWindow::OnFilterMaterials)
+                ]
+        ]
+
+    // Buttons row
+    + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f)
+        [
+            SNew(SHorizontalBox)
+
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(5.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("AnalyzeCurrentLevelButton", "Analyze Current Level"))
+                        .OnClicked(this, &SOptimizationWindow::OnAnalyzeCurrentLevelClicked)
+                        .HAlign(HAlign_Center)
+                ]
+
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(5.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("AnalyzeButton", "Analyze Project"))
+                        .OnClicked(this, &SOptimizationWindow::OnAnalyzeClicked)
+                        .HAlign(HAlign_Center)
+                ]
+
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(5.0f, 0.0f)
+                [
+                    SNew(SButton)
+                        .Text(LOCTEXT("ExportButton", "Export to CSV"))
+                        .OnClicked(this, &SOptimizationWindow::OnExportClicked)
+                        .HAlign(HAlign_Center)
+                ]
+        ]
+
+    // Status and Progress
+    + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f)
+        [
+            SNew(SVerticalBox)
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                [
+                    SAssignNew(StatusText, STextBlock)
+                        .Text(LOCTEXT("StatusReady", "Ready to analyze. Click the button above."))
+                ]
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(0.0f, 5.0f)
+                [
+                    SAssignNew(ProgressText, STextBlock)
+                        .Text(FText::GetEmpty())
+                        .Visibility(EVisibility::Collapsed)
+                ]
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(0.0f, 5.0f)
+                [
+                    SNew(SBox)
+                        .HeightOverride(20.0f)
+                        [
+                            SAssignNew(ProgressBar, SProgressBar)
+                                .Percent(0.0f)
+                                .FillColorAndOpacity(FLinearColor(0.0f, 0.5f, 1.0f))
+                                .Visibility(EVisibility::Collapsed)
+                        ]
+                ]
+        ]
+
+    // Issues list
+    + SVerticalBox::Slot()
+        .FillHeight(1.0f)
+        .Padding(10.0f)
+        [
+            SNew(SScrollBox)
+                + SScrollBox::Slot()
+                [
+                    SAssignNew(IssueListView, SListView<TSharedPtr<FOptimizationIssue>>)
+                        .ListItemsSource(&Issues)
+                        .OnGenerateRow(this, &SOptimizationWindow::OnGenerateIssueRow)
+                ]
+        ];
+}
+
+TSharedPtr<SWidget> SOptimizationWindow::CreatePerformanceTab()
+{
+    return SNew(SBox)
+        .Padding(10.0f)
+        [
+            SAssignNew(PerformanceMonitor, SPerformanceMonitorWidget)
+        ];
 }
 
 #undef LOCTEXT_NAMESPACE

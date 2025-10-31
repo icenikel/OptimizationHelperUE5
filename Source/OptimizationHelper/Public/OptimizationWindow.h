@@ -10,6 +10,8 @@
 template <typename NumericType>
 class SSpinBox;
 
+class SPerformanceMonitorWidget;
+
 class SOptimizationWindow : public SCompoundWidget
 {
 public:
@@ -19,6 +21,22 @@ public:
     void Construct(const FArguments& InArgs);
 
 private:
+
+    // Tab management
+    enum class ETabType
+    {
+        Analysis,
+        PerformanceMonitor
+    };
+
+    ETabType CurrentTab;
+    FReply OnSwitchToAnalysisTab();
+    FReply OnSwitchToPerformanceTab();
+    TSharedPtr<SWidget> CreateAnalysisTab();
+    TSharedPtr<SWidget> CreatePerformanceTab();
+    FSlateColor GetAnalysisTabColor() const; 
+    FSlateColor GetPerformanceTabColor() const; 
+
     // Button handlers
     FReply OnAnalyzeClicked();
     FReply OnAnalyzeCurrentLevelClicked();
@@ -54,6 +72,9 @@ private:
     void UpdateProgress(const FText& CurrentTask, float Progress);
 
     // UI Elements
+
+    TSharedPtr<SBox> ContentSwitcher;
+    TSharedPtr<SPerformanceMonitorWidget> PerformanceMonitor;
     TArray<TSharedPtr<FOptimizationIssue>> Issues;
     TArray<TSharedPtr<FOptimizationIssue>> AllIssues;
     TArray<TSharedPtr<FOptimizationIssue>> FilteredIssues;

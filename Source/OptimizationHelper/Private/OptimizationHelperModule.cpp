@@ -45,16 +45,6 @@ void FOptimizationHelperModule::RegisterMenus()
             ))
         );
 
-        // ← НОВАЯ запись для Performance Monitor
-        Section.AddMenuEntry(
-            "PerformanceMonitor",
-            LOCTEXT("PerformanceMonitorEntry", "Performance Monitor"),
-            LOCTEXT("PerformanceMonitorTooltip", "Opens real-time performance monitor"),
-            FSlateIcon(),
-            FUIAction(FExecuteAction::CreateRaw(
-                this, &FOptimizationHelperModule::OnOpenPerformanceMonitor
-            ))
-        );
     }
 }
 
@@ -72,23 +62,6 @@ void FOptimizationHelperModule::OnOpenOptimizationWindow()
     FSlateApplication::Get().AddWindow(Window);
 }
 
-
-
-void FOptimizationHelperModule::OnOpenPerformanceMonitor()
-{
-    UE_LOG(LogTemp, Warning, TEXT("=== OPENING PERFORMANCE MONITOR ==="));
-
-    TSharedRef<SWindow> Window = SNew(SWindow)
-        .Title(LOCTEXT("PerformanceMonitorTitle", "Performance Monitor"))
-        .ClientSize(FVector2D(300, 250))
-        .SupportsMaximize(false)
-        .SupportsMinimize(true)
-        [
-            SNew(SPerformanceMonitorWidget)
-        ];
-
-    FSlateApplication::Get().AddWindow(Window);
-}
 
 #undef LOCTEXT_NAMESPACE
 
