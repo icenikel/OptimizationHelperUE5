@@ -1130,6 +1130,7 @@ TSharedPtr<SWidget> SOptimizationWindow::CreatePerformanceTab()
         .Padding(10.0f)
         [
             SAssignNew(PerformanceMonitor, SPerformanceMonitorWidget)
+                .Analyzer(Analyzer)  // ← Передаём Analyzer
         ];
 }
 

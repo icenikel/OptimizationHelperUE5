@@ -61,6 +61,37 @@ struct FOptimizationIssue
     FString SuggestedFix;
 };
 
+// Real-time performance stats structure
+USTRUCT(BlueprintType)
+struct FPerformanceStats
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    float FPS = 0.0f;
+
+    UPROPERTY()
+    float FrameTimeMS = 0.0f;
+
+    UPROPERTY()
+    int32 DrawCalls = 0;
+
+    UPROPERTY()
+    int32 Triangles = 0;
+
+    UPROPERTY()
+    float MemoryUsedMB = 0.0f;
+
+    UPROPERTY()
+    float TextureMemoryMB = 0.0f;
+
+    UPROPERTY()
+    int32 PrimitivesDrawn = 0;
+
+    UPROPERTY()
+    int32 MeshDrawCalls = 0;
+};
+
 UCLASS()
 class UOptimizationAnalyzer : public UObject
 {
@@ -79,6 +110,12 @@ public:
     TArray<FOptimizationIssue> CheckAudio();
     TArray<FOptimizationIssue> CheckParticleSystems();
 
+    // Real-time performance monitoring
+    FPerformanceStats GetCurrentPerformanceStats();
+    int32 GetCurrentDrawCalls();
+    int32 GetCurrentTriangleCount();
+    float GetTextureMemoryUsage();
+
     // Configuration
     UPROPERTY()
     int32 MaxTrianglesPerMesh = 100000;
@@ -92,5 +129,9 @@ public:
     UPROPERTY()
     int32 MaxTextureSamplesPerMaterial = 8;
 
+private:
+    // Helper functions for stats gathering
+    int32 CalculateSceneTriangles();
+    int32 CountVisiblePrimitives();
 
 };

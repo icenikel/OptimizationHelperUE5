@@ -7,6 +7,7 @@ class SPerformanceMonitorWidget : public SCompoundWidget
 {
 public:
     SLATE_BEGIN_ARGS(SPerformanceMonitorWidget) {}
+        SLATE_ARGUMENT(class UOptimizationAnalyzer*, Analyzer)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs);
@@ -34,6 +35,9 @@ private:
     int32 CurrentTriangles = 0;
     float CurrentMemoryMB = 0.0f;
     int32 CurrentStreamingTextures = 0;
+
+    // Reference to analyzer
+    class UOptimizationAnalyzer* Analyzer = nullptr;
 
     // Helper functions
     void UpdateStats();

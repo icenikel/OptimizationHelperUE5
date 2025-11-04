@@ -7,11 +7,14 @@
 #include "RenderingThread.h"
 #include "HAL/PlatformMemory.h"
 #include "Styling/CoreStyle.h"
+#include "OptimizationAnalyzer.h"
 
 #define LOCTEXT_NAMESPACE "PerformanceMonitorWidget"
 
 void SPerformanceMonitorWidget::Construct(const FArguments& InArgs)
 {
+    Analyzer = InArgs._Analyzer; 
+
     ChildSlot
         [
             SNew(SBorder)
@@ -181,18 +184,32 @@ void SPerformanceMonitorWidget::Tick(const FGeometry& AllottedGeometry, const do
 
 void SPerformanceMonitorWidget::UpdateStats()
 {
+    // DEBUG: Check if Analyzer exists
+    if (!Analyzer)
+    {
+        UE_LOG(LogTemp, Error, TEXT("PerformanceMonitorWidget: Analyzer is NULL!"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("PerformanceMonitorWidget: UpdateStats called, Analyzer is valid"));
+
     // Get FPS
     CurrentFPS = 1.0f / FApp::GetDeltaTime();
     CurrentFrameTime = FApp::GetDeltaTime() * 1000.0f;  // Convert to milliseconds
 
-    // Get rendering stats (requires access to render thread stats)
-    if (GEngine && GEngine->GetCurrentPlayWorld())
+    // Get rendering stats from Analyzer
+    if (Analyzer)
     {
-        UWorld* World = GEngine->GetCurrentPlayWorld();
-
-        // Note: These are approximate values - exact draw calls require RHI stats
-        CurrentDrawCalls = 0;  // Would need RenderStats access
-        CurrentTriangles = 0;   // Would need RenderStats access
+        FPerformanceStats Stats = Analyzer->GetCurrentPerformanceStats();
+        CurrentDrawCalls = Stats.DrawCalls;
+        CurrentTriangles = Stats.Triangles;
+        UE_LOG(LogTemp, Warning, TEXT("PerformanceMonitorWidget: Got stats - DrawCalls=%d, Triangles=%d"),
+            CurrentDrawCalls, CurrentTriangles);
+    }
+    else
+    {
+        CurrentDrawCalls = 0;
+        CurrentTriangles = 0;
     }
 
     // Get memory usage
@@ -217,12 +234,43 @@ void SPerformanceMonitorWidget::UpdateStats()
 
     if (DrawCallsText.IsValid())
     {
+        // Color coding for Draw Calls
+        FLinearColor DrawCallsColor = FLinearColor::Green;
+        if (CurrentDrawCalls > 5000)
+            DrawCallsColor = FLinearColor::Red;
+        else if (CurrentDrawCalls > 2000)
+            DrawCallsColor = FLinearColor::Yellow;
+
         DrawCallsText->SetText(FText::FromString(FString::Printf(TEXT("%d"), CurrentDrawCalls)));
+        DrawCallsText->SetColorAndOpacity(DrawCallsColor);
+        // DEBUG
+        UE_LOG(LogTemp, Warning, TEXT("UI UPDATE: DrawCalls text set to %d"), CurrentDrawCalls);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UI UPDATE: DrawCallsText is INVALID!"));
+    
     }
 
     if (TrianglesText.IsValid())
     {
-        TrianglesText->SetText(FText::FromString(FString::Printf(TEXT("%d"), CurrentTriangles)));
+        // Format triangles (1.5M, 250.5K, or raw number)
+        FString TrianglesStr;
+        if (CurrentTriangles > 1000000)
+            TrianglesStr = FString::Printf(TEXT("%.2fM"), CurrentTriangles / 1000000.0f);
+        else if (CurrentTriangles > 1000)
+            TrianglesStr = FString::Printf(TEXT("%.1fK"), CurrentTriangles / 1000.0f);
+        else
+            TrianglesStr = FString::Printf(TEXT("%d"), CurrentTriangles);
+
+        TrianglesText->SetText(FText::FromString(TrianglesStr));
+        // DEBUG
+        UE_LOG(LogTemp, Warning, TEXT("UI UPDATE: Triangles text set to %s"), *TrianglesStr);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UI UPDATE: TrianglesText is INVALID!"));
+    
     }
 
     if (MemoryText.IsValid())
